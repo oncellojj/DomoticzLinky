@@ -22,51 +22,68 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-
-    - name: Install kick-api
-      run: npm install kick-api
-
-    - name: Write kick-status.js
-      run: |
-        cat <<'EOF' > kick-status.js
-        const { getChannel } = require('kick-api');
-        const username = process.argv[2] || "shortypie";
-        getChannel(username)
-          .then(data => {
-            const isLive = !!data.livestream;
-            console.log('IS_ONLINE=' + isLive);
-            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `online=${isLive}\n`);
-            process.exit(0);
-          })
-          .catch(err => {
-            console.error('IS_ONLINE=false');
-            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `online=false\n`);
-            process.exit(0);
-          });
-        EOF
-
-    - name: Check if Kick streamer is online (using kick-api)
-      id: kick_status
-      run: node kick-status.js shortypie
-
-    - name: Exit if streamer is not live
-      if: steps.kick_status.outputs.online != 'true'
-      run: echo "Streamer is not live. Exiting workflow."
-
     - uses: actions/checkout@v4
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies for Kick check
+      run: pip install requests
+
+    - name: Write kick_status.py
+      run: |
+        cat <<'EOF' > kick_status.py
+        import sys
+        import requests
+        import re
+        import os
+
+        def is_streamer_live(username):
+            url = f"https://kick.com/{username}"
+            headers = {
+                "User-Agent": "Mozilla/5.0"
+            }
+            try:
+                response = requests.get(url, headers=headers, timeout=15)
+                response.raise_for_status()
+                # Look for livestream state in the HTML source
+                match = re.search(r'"livestream":({.*?})', response.text)
+                if match:
+                    return True
+                else:
+                    return False
+            except Exception as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return False
+
+        if __name__ == "__main__":
+            username = sys.argv[1] if len(sys.argv) > 1 else "shortypie"
+            live = is_streamer_live(username)
+            print(f"IS_ONLINE={str(live).lower()}")
+            github_output = os.environ.get("GITHUB_OUTPUT")
+            if github_output:
+                with open(github_output, "a") as f:
+                    f.write(f"online={str(live).lower()}\n")
+        EOF
+
+    - name: Check if Kick streamer is online
+      id: kick_status
+      run: python kick_status.py shortypie
+
+    - name: Exit if streamer is not live
+      if: steps.kick_status.outputs.online != 'true'
+      run: echo "Streamer is not live. Exiting workflow."
+
+    - name: Set up Python for main workflow
       if: steps.kick_status.outputs.online == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
 
     - name: Set Locale
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         sudo apt-get install tzdata locales -y && sudo locale-gen en_US.UTF-8
         sudo localectl set-locale LANG="en_US.UTF-8"
@@ -76,9 +93,9 @@ jobs:
         locale
         locale -c -k LC_NUMERIC
         localectl status
-      if: steps.kick_status.outputs.online == 'true'
 
-    - name: Install dependencies
+    - name: Install workflow dependencies
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         python -m pip install --upgrade pip
         pip install --upgrade pip
@@ -87,13 +104,12 @@ jobs:
         pip install --upgrade pyautogui
         pip install --upgrade pymongo
         pip install --upgrade python-xlib
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Lint with flake8
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         pip install flake8
         # flake8 . --count --show-source --statistics --exclude=temp
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Install Chrome
       if: steps.kick_status.outputs.online == 'true' && matrix.os == 'ubuntu-20.04'
@@ -101,17 +117,18 @@ jobs:
         sudo apt install google-chrome-stable
 
     - name: Check the console scripts interface
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         seleniumbase
         sbase
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Install chromedriver
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         seleniumbase install chromedriver
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Install Cloudflare WARP
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         sudo apt update
         sudo apt install -y curl
@@ -123,17 +140,16 @@ jobs:
         sudo warp-cli --accept-tos connect
         sleep 5
         sudo warp-cli --accept-tos status
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Run python plugin.py --debug
+      if: steps.kick_status.outputs.online == 'true'
       run: |
         python plugin.py --debug --chrome --xvfb --screenshot
-      if: steps.kick_status.outputs.online == 'true'
 
     - name: Upload screenshots
+      if: steps.kick_status.outputs.online == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: seleniumbase-screenshots
         path: |
           ./latest_logs/
-      if: steps.kick_status.outputs.online == 'true'
