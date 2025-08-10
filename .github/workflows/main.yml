@@ -26,7 +26,7 @@ jobs:
     - name: Check if Kick streamer is online
       id: kick_status
       run: |
-        USERNAME="streamer_username" # <-- REPLACE with actual username
+        USERNAME="shortypie" # <-- REPLACE with actual username
         RESPONSE=$(curl -s "https://kick.com/api/v2/channels/$USERNAME")
         IS_ONLINE=$(echo $RESPONSE | jq '.livestream != null')
         echo "online=$IS_ONLINE" >> $GITHUB_OUTPUT
