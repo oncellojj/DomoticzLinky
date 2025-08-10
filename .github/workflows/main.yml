@@ -23,17 +23,31 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Check Kick streamer status via RapidAPI
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install kick-api
+      run: npm install kick-api
+
+    - name: Check if Kick streamer is online (using kick-api)
       id: kick_status
-      env:
-        RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
       run: |
-        USERNAME="shortypie"
-        RESPONSE=$(curl -s -H "X-RapidAPI-Key: $RAPIDAPI_KEY" \
-            -H "X-RapidAPI-Host: kick-streamer-status.p.rapidapi.com" \
-            "https://kick-streamer-status.p.rapidapi.com/streamerstatus?username=$USERNAME")
-        IS_ONLINE=$(echo $RESPONSE | jq -r '.live | tostring')
-        echo "online=$IS_ONLINE" >> $GITHUB_OUTPUT
+        node <<'EOF'
+        const KickAPI = require('kick-api');
+        const username = "shortypie"; // replace with your streamer
+        KickAPI.getChannelByName(username)
+          .then(data => {
+            const isLive = !!data.livestream;
+            console.log('IS_ONLINE=' + isLive);
+            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `online=${isLive}\n`);
+          })
+          .catch(err => {
+            console.log('IS_ONLINE=false');
+            require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `online=false\n`);
+          });
+        EOF
 
     - name: Exit if streamer is not live
       if: steps.kick_status.outputs.online != 'true'
