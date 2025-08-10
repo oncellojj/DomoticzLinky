@@ -33,9 +33,9 @@ jobs:
     - name: Write kick-status.js
       run: |
         cat <<'EOF' > kick-status.js
-        const KickAPI = require('kick-api');
+        const { getChannel } = require('kick-api');
         const username = process.argv[2] || "shortypie";
-        KickAPI.channel(username)
+        getChannel(username)
           .then(data => {
             const isLive = !!data.livestream;
             console.log('IS_ONLINE=' + isLive);
@@ -92,7 +92,6 @@ jobs:
     - name: Lint with flake8
       run: |
         pip install flake8
-        # Stop the build if there are flake8 issues
         # flake8 . --count --show-source --statistics --exclude=temp
       if: steps.kick_status.outputs.online == 'true'
 
