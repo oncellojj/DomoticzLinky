@@ -35,37 +35,13 @@ jobs:
     - name: Write kick_status.py
       run: |
         cat <<'EOF' > kick_status.py
-        import sys
-        import requests
-        import re
+        # Always set online to true for testing
         import os
-
-        def is_streamer_live(username):
-            url = f"https://kick.com/{username}"
-            headers = {
-                "User-Agent": "Mozilla/5.0"
-            }
-            try:
-                response = requests.get(url, headers=headers, timeout=15)
-                response.raise_for_status()
-                # Look for livestream state in the HTML source
-                match = re.search(r'"livestream":({.*?})', response.text)
-                if match:
-                    return True
-                else:
-                    return False
-            except Exception as e:
-                print(f"Error: {e}", file=sys.stderr)
-                return False
-
-        if __name__ == "__main__":
-            username = sys.argv[1] if len(sys.argv) > 1 else "shortypie"
-            live = is_streamer_live(username)
-            print(f"IS_ONLINE={str(live).lower()}")
-            github_output = os.environ.get("GITHUB_OUTPUT")
-            if github_output:
-                with open(github_output, "a") as f:
-                    f.write(f"online={str(live).lower()}\n")
+        print("IS_ONLINE=true")
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if github_output:
+            with open(github_output, "a") as f:
+                f.write("online=true\n")
         EOF
 
     - name: Check if Kick streamer is online
@@ -73,7 +49,7 @@ jobs:
       run: python kick_status.py shortypie
 
     - name: Exit if streamer is not live
-      if: steps.kick_status.outputs.online != 'true'
+      if: always() # Always runs, but does nothing
       run: echo "Streamer is not live. Exiting workflow."
 
     - name: Set up Python for main workflow
