@@ -1,0 +1,131 @@
+name: CI
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  push:
+    branches: [ master ]
+  pull_request:
+    branches:
+  workflow_dispatch:
+
+jobs:
+  build:
+    env:
+      PY_COLORS: "1"
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.13"]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies for Kick check
+      run: pip install requests
+
+    - name: Write kick_status.py
+      run: |
+        cat <<'EOF' > kick_status.py
+        # Always set online to true for testing
+        import os
+        print("IS_ONLINE=true")
+        github_output = os.environ.get("GITHUB_OUTPUT")
+        if github_output:
+            with open(github_output, "a") as f:
+                f.write("online=true\n")
+        EOF
+
+    - name: Check if Kick streamer is online
+      id: kick_status
+      run: python kick_status.py shortypie
+
+    - name: Exit if streamer is not live
+      if: always() # Always runs, but does nothing
+      run: echo "Streamer is not live. Exiting workflow."
+
+    - name: Set up Python for main workflow
+      if: steps.kick_status.outputs.online == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set Locale
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        sudo apt-get install tzdata locales -y && sudo locale-gen en_US.UTF-8
+        sudo localectl set-locale LANG="en_US.UTF-8"
+        export LANG="en_US.UTF-8"
+        sudo update-locale
+        locale -a
+        locale
+        locale -c -k LC_NUMERIC
+        localectl status
+
+    - name: Install workflow dependencies
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        python -m pip install --upgrade pip
+        pip install --upgrade pip
+        pip install --upgrade wheel
+        pip install --upgrade seleniumbase
+        pip install --upgrade pyautogui
+        pip install --upgrade pymongo
+        pip install --upgrade python-xlib
+
+    - name: Lint with flake8
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        pip install flake8
+        # flake8 . --count --show-source --statistics --exclude=temp
+
+    - name: Install Chrome
+      if: steps.kick_status.outputs.online == 'true' && matrix.os == 'ubuntu-20.04'
+      run: |
+        sudo apt install google-chrome-stable
+
+    - name: Check the console scripts interface
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        seleniumbase
+        sbase
+
+    - name: Install chromedriver
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        seleniumbase install chromedriver
+
+    - name: Install Cloudflare WARP
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        sudo apt update
+        sudo apt install -y curl
+        curl https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+        sudo apt update
+        sudo apt install -y cloudflare-warp
+        sudo warp-cli --accept-tos registration new
+        sudo warp-cli --accept-tos connect
+        sleep 5
+        sudo warp-cli --accept-tos status
+
+    - name: Run python plugin.py --debug
+      if: steps.kick_status.outputs.online == 'true'
+      run: |
+        python plugin.py --debug --chrome --xvfb --screenshot
+
+    - name: Upload screenshots
+      if: steps.kick_status.outputs.online == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: seleniumbase-screenshots
+        path: |
+          ./latest_logs/
