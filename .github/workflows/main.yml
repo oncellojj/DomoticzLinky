@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
   workflow_dispatch:
-    branches:
 
 jobs:
   build:
@@ -35,14 +34,13 @@ jobs:
       run: |
         cat <<'EOF' > kick-status.js
         const KickAPI = require('kick-api');
-        const api = new KickAPI();
         const username = process.argv[2] || "shortypie";
-        api.channel(username)
+        KickAPI.channel(username)
           .then(data => {
             const isLive = !!data.livestream;
             console.log('IS_ONLINE=' + isLive);
             require('fs').appendFileSync(process.env.GITHUB_OUTPUT, `online=${isLive}\n`);
-            process.exit(isLive ? 0 : 0);
+            process.exit(0);
           })
           .catch(err => {
             console.error('IS_ONLINE=false');
