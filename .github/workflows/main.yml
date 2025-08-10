@@ -26,23 +26,24 @@ jobs:
     - name: Check if Kick streamer is online
       id: kick_status
       run: |
-        USERNAME="streamer_username" # <-- REPLACE with actual streamer username
+        USERNAME="streamer_username" # <-- REPLACE with actual username
         RESPONSE=$(curl -s "https://kick.com/api/v2/channels/$USERNAME")
         IS_ONLINE=$(echo $RESPONSE | jq '.livestream != null')
         echo "online=$IS_ONLINE" >> $GITHUB_OUTPUT
 
     - name: Exit if streamer is not live
       if: steps.kick_status.outputs.online != 'true'
-      run: |
-        echo "Streamer is not live. Exiting workflow."
-        exit 0
+      run: echo "Streamer is not live. Exiting workflow."
 
-    # The rest of your workflow steps start here...
     - uses: actions/checkout@v4
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Set Locale
       run: |
         sudo apt-get install tzdata locales -y && sudo locale-gen en_US.UTF-8
@@ -53,6 +54,8 @@ jobs:
         locale
         locale -c -k LC_NUMERIC
         localectl status
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -62,22 +65,31 @@ jobs:
         pip install --upgrade pyautogui
         pip install --upgrade pymongo
         pip install --upgrade python-xlib
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Lint with flake8
       run: |
         pip install flake8
         # Stop the build if there are flake8 issues
         # flake8 . --count --show-source --statistics --exclude=temp
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Install Chrome
-      if: matrix.os == 'ubuntu-20.04'
+      if: steps.kick_status.outputs.online == 'true' && matrix.os == 'ubuntu-20.04'
       run: |
         sudo apt install google-chrome-stable
+
     - name: Check the console scripts interface
       run: |
         seleniumbase
         sbase
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Install chromedriver
       run: |
         seleniumbase install chromedriver
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Install Cloudflare WARP
       run: |
         sudo apt update
@@ -90,12 +102,17 @@ jobs:
         sudo warp-cli --accept-tos connect
         sleep 5
         sudo warp-cli --accept-tos status
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Run python plugin.py --debug
       run: |
         python plugin.py --debug --chrome --xvfb --screenshot
+      if: steps.kick_status.outputs.online == 'true'
+
     - name: Upload screenshots
       uses: actions/upload-artifact@v4
       with:
         name: seleniumbase-screenshots
         path: |
           ./latest_logs/
+      if: steps.kick_status.outputs.online == 'true'
