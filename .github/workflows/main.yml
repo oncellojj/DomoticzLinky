@@ -35,9 +35,9 @@ jobs:
       id: kick_status
       run: |
         node <<'EOF'
-        const KickAPI = require('kick-api');
-        const username = "shortypie"; // replace with your streamer
-        KickAPI.getChannelByName(username)
+        const { getChannelByName } = require('kick-api');
+        const username = "shortypie";
+        getChannelByName(username)
           .then(data => {
             const isLive = !!data.livestream;
             console.log('IS_ONLINE=' + isLive);
