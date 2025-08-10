@@ -23,14 +23,16 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-    - name: Check if Kick streamer is online
+    - name: Check Kick streamer status via RapidAPI
       id: kick_status
+      env:
+        RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
       run: |
         USERNAME="shortypie"
-        RESPONSE=$(curl -s -H "User-Agent: Mozilla/5.0" "https://kick.com/api/v2/channels/$USERNAME")
-        echo "API RESPONSE: $RESPONSE"
-        IS_ONLINE=$(echo $RESPONSE | jq -r '.livestream != null | tostring')
-        echo "IS_ONLINE: $IS_ONLINE"
+        RESPONSE=$(curl -s -H "X-RapidAPI-Key: $RAPIDAPI_KEY" \
+            -H "X-RapidAPI-Host: kick-streamer-status.p.rapidapi.com" \
+            "https://kick-streamer-status.p.rapidapi.com/streamerstatus?username=$USERNAME")
+        IS_ONLINE=$(echo $RESPONSE | jq -r '.live | tostring')
         echo "online=$IS_ONLINE" >> $GITHUB_OUTPUT
 
     - name: Exit if streamer is not live
